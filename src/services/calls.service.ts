@@ -27,21 +27,24 @@ export async function getSummary() {
 
 export async function getRecentCalls() {
   const result = await pool.query<CallLogRow>(`
-    SELECT id, phone_number, caller_name, duration_seconds, call_date, created_at
+    SELECT id, phone_number, caller_name, duration_seconds, call_date, created_at,
+           success_evaluation, success_rate
     FROM ${TABLE}
     ORDER BY created_at DESC
     LIMIT 10
   `);
   return result.rows.map(r => ({
-    id:         r.id,
-    phone:      r.phone_number || 'Unknown',
-    callerName: r.caller_name  || '—',
-    duration:   fmtDuration(r.duration_seconds ?? 0),
-    date:       r.call_date
+    id:                 r.id,
+    phone:              r.phone_number || 'Unknown',
+    callerName:         r.caller_name  || '—',
+    duration:           fmtDuration(r.duration_seconds ?? 0),
+    date:               r.call_date
       ? new Date(r.call_date).toLocaleDateString('en-IN')
       : r.created_at
         ? new Date(r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         : '—',
+    successEvaluation:  r.success_evaluation ?? null,
+    successRate:        r.success_rate        ?? null,
   }));
 }
 
@@ -50,7 +53,8 @@ export async function getAllCalls(page: number, limit: number) {
   const [data, count] = await Promise.all([
     pool.query<CallLogRow>(`
       SELECT id, phone_number, caller_name, duration_seconds,
-             call_date, created_at, transcript, recording_url
+             call_date, created_at, transcript, recording_url,
+             ai_summary, success_evaluation, success_rate, lead_classification
       FROM ${TABLE}
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
@@ -59,17 +63,21 @@ export async function getAllCalls(page: number, limit: number) {
   ]);
   return {
     data: data.rows.map(r => ({
-      id:           r.id,
-      phone:        r.phone_number || 'Unknown',
-      callerName:   r.caller_name  || '—',
-      duration:     fmtDuration(r.duration_seconds ?? 0),
-      date:         r.call_date
+      id:                 r.id,
+      phone:              r.phone_number || 'Unknown',
+      callerName:         r.caller_name  || '—',
+      duration:           fmtDuration(r.duration_seconds ?? 0),
+      date:               r.call_date
         ? new Date(r.call_date).toLocaleDateString('en-IN')
         : r.created_at
           ? new Date(r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
           : '—',
-      transcript:   r.transcript    || null,
-      recordingUrl: r.recording_url || null,
+      transcript:         r.transcript          || null,
+      recordingUrl:       r.recording_url       || null,
+      aiSummary:          r.ai_summary          || null,
+      successEvaluation:  r.success_evaluation  ?? null,
+      successRate:        r.success_rate        ?? null,
+      leadClassification: r.lead_classification || null,
     })),
     total: count.rows[0].total,
     page,
